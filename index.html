@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f0f0f;
+  color: white;
+  text-align: center;
+  padding: 90px 15px 20px;
+}
+button {
+  padding: 10px 14px;
+  margin: 5px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.start-btn { background: #ff9800; color: black; }
+.point-btn { background: #1db954; color: white; }
+.next-btn { background: #2196f3; color: white; }
+.shuffle-btn { background: #9c27b0; color: white; }
+
+.top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #0f0f0f;
+  z-index: 20;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+  padding: 10px;
+}
+.turn-display {
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+.top-controls {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+input {
+  padding: 8px;
+  margin: 5px;
+  border-radius: 6px;
+  border: none;
+  width: 120px;
+}
+.card {
+  width: 260px;
+  height: 380px;
+  perspective: 1000px;
+  margin: 15px auto;
+}
+.card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transition: transform 0.7s;
+  transform-style: preserve-3d;
+}
+.card.flip .card-inner { transform: rotateY(180deg); }
+.card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+}
+.card-front {
+  background: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.card-front img { width: 85%; }
+.card-back {
+  background: linear-gradient(135deg, #7b1fa2, #000);
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 15px;
+}
+.hidden { display: none; }
+.scoreboard { font-size: 14px; }
+.no-anim .card-inner { transition: none !important; }
+.info-text {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 8px 0;
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="turn-display" id="turnDisplay"></div>
+  <div class="top-controls">
+    <button class="shuffle-btn" onclick="shuffleDeck()">🔀</button>
+    <button class="point-btn" onclick="addSongPoint()">+1 Song</button>
+    <button class="point-btn" onclick="addBandPoint()">+1 Band</button>
+    <button class="point-btn" onclick="addYearPoint()">+1 Year</button>
+    <button class="next-btn" onclick="nextTurn()">Next ➡</button>
+  </div>
+</div>
+
+<div class="setup">
+  <p>Enter up to 6 players</p>
+  <div id="playerInputs"></div>
+  <button class="start-btn" onclick="startGame()">Start Game</button>
+</div>
+
+<div class="game-area hidden" id="gameArea">
+  <div class="card" id="card" onclick="flipCard()">
+    <div class="card-inner">
+      <div class="card-face card-front">
+        <img id="qrImage" src="">
+      </div>
+      <div class="card-face card-back">
+        <p id="song" class="info-text"></p>
+        <p id="band" class="info-text hidden"></p>
+        <p id="year" class="info-text hidden"></p>
+      </div>
+    </div>
+  </div>
+  <div class="scoreboard" id="scoreboard"></div>
+</div>
+
+<script>
+// Example deck - update with your own songs
+const deck = [
+  { qr: "song1.png", song: "A Day In The Life", band: "The Beatles", year: "1967" },
+  { qr: "song2.png", song: "All Along the Watchtower", band: "Jimi Hendrix", year: "1968" },
+  { qr: "song3.png", song: "God Only Knows", band: "The Beach Boys", year: "1966" },
+  { qr: "song4.png", song: "Gimme Shelter", band: "The Rolling Stones", year: "1969" },
+  { qr: "song5.png", song: "Walk on By", band: "Dionne Warwick", year: "1964" },
+  { qr: "song6.png", song: "Reach Out I'll Be There", band: "Four Tops", year: "1967" },
+  { qr: "song7.png", song: "Scarborough Fair", band: "Simon & Garfunkel", year: "1968" },
+  { qr: "song8.png", song: "I'm a Believer", band: "The Monkees", year: "1967" },
+  { qr: "song9.png", song: "(Sittin' On) the Dock of the Bay", band: "Otis Redding", year: "1968" },
+  { qr: "song10.png", song: "Return to Sender", band: "Elvis Presley", year: "1962" },
+  { qr: "song11.png", song: "Sugar Sugar", band: "The Archies", year: "1969" },
+  { qr: "song12.png", song: "I Say a Little Prayer", band: "Aretha Franklin", year: "1968" },
+  { qr: "song13.png", song: "I Get The Sweetest Feeling", band: "Jackie Wilson", year: "1968" },
+  { qr: "song14.png", song: "Penny Lane", band: "The Beatles", year: "1967" },
+  { qr: "song15.png", song: "Wichita Lineman", band: "Glen Campbell", year: "1968" },
+  { qr: "song16.png", song: "Where Do You Go To (My Lovely)", band: "Peter Sarstedt", year: "1969" },
+  { qr: "song17.png", song: "Help Yourself", band: "Carlo Donida, Giulio Rapetti, Tom Jones", year: "1968" },
+  { qr: "song18.png", song: "Dedicated To The One I Love", band: "The Mamas & The Papas", year: "1967" },
+  { qr: "song19.png", song: "My Guy", band: "Mary Wells", year: "1964" },
+  { qr: "song20.png", song: "Good Vibrations", band: "The Beach Boys", year: "1967" },
+  { qr: "song21.png", song: "I Heard It Through The Grapevine", band: "Marvin Gaye", year: "1983" },
+  { qr: "song22.png", song: "Here Comes the Sun", band: "The Beatles", year: "1969" },
+  { qr: "song23.png", song: "Suspicious Minds", band: "Elvis Presley", year: "1969" },
+  { qr: "song24.png", song: "Everybody's Talkin", band: "Harry Nilsson", year: "1968" },
+  { qr: "song25.png", song: "Mrs. Robinson", band: "Simon & Garfunkel", year: "1968" },
+  { qr: "song26.png", song: "Like a Rolling Stone", band: "Bob Dylan", year: "1965" },
+  { qr: "song27.png", song: "(I Can't Get No) Satisfaction", band: "The Rolling Stones", year: "1965" },
+  { qr: "song28.png", song: "Hush", band: "Deep Purple", year: "1968" },
+  { qr: "song29.png", song: "Ain't No Mountain High Enough", band: "Marvin Gaye, Tammi Terrell", year: "1967" },
+  { qr: "song30.png", song: "Something", band: "The Beatles", year: "1969" },
+  { qr: "song31.png", song: "Private Number", band: "William Bell, Judy Clay", year: "1968" },
+  { qr: "song32.png", song: "Proud Mary", band: "Creedence Clearwater Revival", year: "1969" },
+  { qr: "song33.png", song: "The Letter", band: "The Box Tops", year: "1967" },
+  { qr: "song34.png", song: "Light My Fire", band: "The Doors", year: "1967" },
+  { qr: "song35.png", song: "Downtown", band: "Petula Clark", year: "1996" },
+  { qr: "song36.png", song: "Can't Help Falling in Love", band: "Elvis Presley", year: "1961" },
+  { qr: "song37.png", song: "What Does It Take", band: "Jr Walker & The All Stars", year: "1969" },
+  { qr: "song38.png", song: "Groovin", band: "The Young Rascals", year: "1967" },
+  { qr: "song39.png", song: "Young Girl", band: "Gary Puckett & The Union Gap", year: "1968" },
+  { qr: "song40.png", song: "Can't Take My Eyes Off You", band: "Andy", year: "1963" },
+  { qr: "song41.png", song: "Whole Lotta Love", band: "Led Zeppelin", year: "1969" },
+  { qr: "song42.png", song: "Born To Be Wild", band: "Steppenwolf", year: "1968" },
+  { qr: "song43.png", song: "White Room", band: "Cream", year: "1968" },
+  { qr: "song44.png", song: "Pinball Wizard", band: "The Who", year: "1969" },
+  { qr: "song45.png", song: "Hey Jude", band: "The Beatles", year: "1968" },
+  { qr: "song46.png", song: "Nights In White Satin", band: "The Moody Blues", year: "1967" },
+  { qr: "song47.png", song: "A Touch Of Velvet A Sting Of Brass", band: "Mood Mosaic", year: "1966" },
+  { qr: "song48.png", song: "Marrakesh Express", band: " Crosby Stills & Nash", year: "1969" },
+  { qr: "song49.png", song: "The Sun Ain't Gonna Shine Anymore", band: "The Walker Brothers", year: "1966" },
+  { qr: "song50.png", song: "To Love Somebody", band: "Nina Simone", year: "1969" },
+  { qr: "song51.png", song: "Cathy's Clown", band: "The Everly Brothers", year: "1964" },
+  { qr: "song52.png", song: "The Fool On The Hill", band: "The Beatles", year: "1967" },
+  { qr: "song53.png", song: "Light My Fire", band: "José Feliciano", year: "1968" },
+  { qr: "song54.png", song: "The Look Of Love", band: "Gladys Knight & The Pips", year: "1968" },
+  { qr: "song55.png", song: "You Can't Hurry Love", band: "The Supremes", year: "1966" },
+  { qr: "song56.png", song: "It's Now or Never", band: "Elvis Presley", year: "1963" },
+  { qr: "song57.png", song: "King Of The Road", band: "Roger Miller", year: "1965" },
+  { qr: "song58.png", song: "Daydream", band: "The Lovin' Spoonful", year: "1966" },
+  { qr: "song59.png", song: "These Boots Are Made For Walkin", band: "Nancy Sinatra", year: "1966" },
+  { qr: "song60.png", song: "There's A Ghost In My House", band: "Dean Taylor", year: "1967" },
+  { qr: "song61.png", song: "California Dreamin", band: "The Mamas & The Papas", year: "1966" },
+  { qr: "song62.png", song: "Stand By Me", band: "Ben E King", year: "1962" },
+  { qr: "song63.png", song: "The Weight", band: "The Band", year: "1968" },
+  { qr: "song64.png", song: "You've Lost That Lovin' Feelin", band: "The Righteous Brothers", year: "1964" },
+  { qr: "song65.png", song: "I Can Hear Music", band: "The Beach Boys", year: "1969" },
+  { qr: "song66.png", song: "Yesterday", band: "The Beatles", year: "1965" },
+  { qr: "song67.png", song: "I Got You Babe", band: "Sonny & Cher", year: "1965" },
+  { qr: "song68.png", song: "Let There Be Love", band: "Nat King Cole & George Shearing", year: "1962" },
+  { qr: "song69.png", song: "What A Wonderful World", band: "Louis Armstrong", year: "1968" },
+  { qr: "song70.png", song: "Somethin' Stupid", band: "Frank Sinatra & Nancy Sinatra", year: "1967" },
+  { qr: "song71.png", song: "I Put A Spell On You", band: "Nina Simone", year: "1965" },
+  { qr: "song72.png", song: "Up on the Roof", band: "The Drifters", year: "1964" },
+  { qr: "song73.png", song: "It's Not Unusual", band: "Tom Jones", year: "1965" },
+  { qr: "song74.png", song: "The Tears Of A Clown", band: "Smokey Robinson & The Miracles", year: "1967" },
+  { qr: "song75.png", song: "This Old Heart Of Mine", band: "The Isley Brothers", year: "1966" },
+  { qr: "song76.png", song: "Here Comes The Night", band: "Them", year: "1965" },
+  { qr: "song77.png", song: "Itchycoo Park", band: "Small Faces", year: "1967" },
+  { qr: "song78.png", song: "My Cherie Amour", band: "Stevie Wonder", year: "1969" },
+  { qr: "song79.png", song: "Alone Again Or", band: "Love", year: "1967" },
+  { qr: "song80.png", song: "If I Can Dream", band: "Elvis Presley", year: "1968" },
+  { qr: "song81.png", song: "Goldfinger", band: "Shirley Bassey", year: "1964" },
+  { qr: "song82.png", song: "Bend Me Shape Me", band: "American Breed", year: "1968" },
+  { qr: "song83.png", song: "The Happening", band: "The Supremes", year: "1967" },
+  { qr: "song84.png", song: "Eleanor Rigby", band: "The Beatles", year: "1966" },
+  { qr: "song85.png", song: "It's A Man's Man's Mans World", band: "James Brown", year: "1966" },
+  { qr: "song86.png", song: "Massachusetts", band: "Bee Gees", year: "1968" },
+  { qr: "song87.png", song: "You Never Can Tell", band: "Chuck Berry", year: "1964" },
+  { qr: "song88.png", song: "Turn! Turn! Turn!", band: "The Byrds", year: "1965" },
+  { qr: "song89.png", song: "Do You Know the Way to San Jose", band: "Dionne Warwick", year: "1968" },
+  { qr: "song90.png", song: "Get Together", band: "The Youngbloods", year: "1967" },
+  { qr: "song91.png", song: "Fortunate Son", band: "Creedence Clearwater Revival", year: "1969" },
+  { qr: "song92.png", song: "For What It's Worth", band: "Buffalo Springfield", year: "1966" },
+  { qr: "song93.png", song: "Respect", band: "Aretha Franklin", year: "1967" },
+  { qr: "song94.png", song: "We've Gotta Get out of This Place", band: "The Animals", year: "1965" },
+  { qr: "song95.png", song: "Crazy", band: "Patsy Cline & The Jordanaires", year: "1961" },
+  { qr: "song96.png", song: "California Girls", band: "The Beach Boys", year: "1965" },
+  { qr: "song97.png", song: "I Am a Rock", band: "Simon & Garfunkel", year: "1966" },
+  { qr: "song98.png", song: "Strawberry Fields Forever", band: "The Beatles", year: "1967" },
+  { qr: "song99.png", song: "Born Free", band: "Matt Monro", year: "1967" },
+  { qr: "song100.png", song: "Everlasting Love", band: "Love Affair", year: "1968" },
+  { qr: "song101.png", song: "Hello Goodbye", band: "The Beatles", year: "1967" },
+  { qr: "song102.png", song: "The Sound of Silence", band: "Simon & Garfunkel.", year: "1964" },
+  { qr: "song103.png", song: "Green Green Grass Of Home", band: "Tom Jones", year: "1967" },
+  { qr: "song104.png", song: "Mr. Tambourine Man", band: "The Byrds", year: "1965" },
+  { qr: "song105.png", song: "Happy Together", band: "The Turtles", year: "1967" },
+  { qr: "song106.png", song: "House of the Rising Sun", band: "The Animals", year: "1964" },
+  { qr: "song107.png", song: "Then He Kissed Me", band: "The Crystals", year: "1963" },
+  { qr: "song108.png", song: "The Twist", band: "Chubby Checker", year: "1962" },
+  { qr: "song109.png", song: "Darlin", band: "The Beach Boys", year: "1967" },
+  { qr: "song110.png", song: "Jumpin' Jack Flash", band: "The Rolling Stones", year: "1966" },
+  { qr: "song111.png", song: "(You're The) Devil In Disguise", band: "Elvis Presley", year: "1968" },
+  { qr: "song112.png", song: "Sunny", band: "Bobby Hebb", year: "1966" },
+  { qr: "song113.png", song: "A Change Is Gonna Come", band: "Sam Cooke", year: "1964" },
+  { qr: "song114.png", song: "My Generation", band: "The Who", year: "1965" },
+  { qr: "song115.png", song: "Breaking Up Is Hard to Do", band: "Neil Sedaka", year: "1960" },
+  { qr: "song116.png", song: "Bad Moon Rising", band: "Creedence Clearwater Revival", year: "1969" },
+  { qr: "song117.png", song: "Beggin", band: "Frankie Valli & The Four Seasons", year: "1967" },
+  { qr: "song118.png", song: "You Really Got Me", band: "The Kinks", year: "1964" },
+  { qr: "song119.png", song: "Paint It Black", band: "The Rolling Stones", year: "1966" },
+  { qr: "song120.png", song: "Be My Baby", band: "The Ronettes", year: "1964" },
+  { qr: "song121.png", song: "Son Of A Preacher Man", band: "Dusty Springfield", year: "1969" },
+  { qr: "song122.png", song: "Unchained Melody", band: "The Righteous Brothers", year: "1965" },
+  { qr: "song123.png", song: "Leaving on a Jet Plane", band: "Peter Paul & Mary", year: "1967" },
+  { qr: "song124.png", song: "I Couldn't Live Without Your Love", band: "Petula Clark", year: "1966" },
+  { qr: "song125.png", song: "My Way", band: "Frank Sinatra", year: "1969" },
+  { qr: "song126.png", song: "Where Did Our Love Go", band: "The Supremes", year: "1964" },
+  { qr: "song127.png", song: "Oh Pretty Woman", band: "Roy Orbison", year: "1962" },
+  { qr: "song128.png", song: "Lucy In The Sky With Diamonds", band: "The Beatles", year: "1967" },
+  { qr: "song129.png", song: "Mony Mony", band: "Tommy James & The Shondells", year: "1968" },
+  { qr: "song130.png", song: "Summer in the City", band: "The Lovin' Spoonful", year: "1966" },
+  { qr: "song131.png", song: "Sgt. Pepper's Lonely Hearts Club Band", band: "The Beatles", year: "1967" },
+  { qr: "song132.png", song: "Do Wah Diddy Diddy", band: "Manfred Mann", year: "1963" },
+  { qr: "song133.png", song: "All I Really Want to Do", band: "The Byrds", year: "1965" },
+  { qr: "song134.png", song: "Sympathy For The Devil", band: "The Rolling Stones", year: "1968" },
+  { qr: "song135.png", song: "Leader Of The Pack", band: "The Shangri-Las", year: "1964" },
+  { qr: "song136.png", song: "A Whiter Shade of Pale", band: "Procol Harum", year: "1967" },
+  { qr: "song137.png", song: "The Locomotion", band: "Little Eva", year: "1962" },
+  { qr: "song138.png", song: "Moon River", band: "Danny Williams", year: "1961" },
+  { qr: "song139.png", song: "Elenore", band: "The Turtles", year: "1968" },
+  { qr: "song140.png", song: "Georgy Girl", band: "The Seekers", year: "1966" },
+  { qr: "song142.png", song: "Blowin' in the Wind", band: "Bob Dylan", year: "1963" },
+  { qr: "song143.png", song: "I Get Around", band: "The Beach Boys", year: "1964" },
+  { qr: "song144.png", song: "Get Ready", band: "The Temptations", year: "1966" },
+  { qr: "song145.png", song: "All You Need Is Love", band: "The Beatles", year: "1967" }
+];
+
+
+let players = [];
+let scores = {};
+let currentPlayerIndex = 0;
+let currentCardIndex = 0;
+let revealStep = 0;
+let roundNumber = 1;
+let questionNumber = 1;
+
+for (let i = 1; i <= 6; i++) {
+  document.getElementById("playerInputs").innerHTML +=
+    `<input type="text" id="p${i}" placeholder="Player ${i}">`;
+}
+
+function playSound(src) {
+  const sound = new Audio(src);
+  sound.volume = 0.6; // normalized volume
+  sound.play().catch(() => {});
+}
+
+function startGame() {
+  players = [];
+  scores = {};
+  roundNumber = 1;
+  questionNumber = 1;
+  currentPlayerIndex = 0;
+
+  for (let i = 1; i <= 6; i++) {
+    let name = document.getElementById("p" + i).value.trim();
+    if (name) players.push(name);
+  }
+  if (players.length === 0) players.push("Player 1");
+
+  players.forEach(p => scores[p] = 0);
+
+  document.querySelector(".setup").classList.add("hidden");
+  document.getElementById("gameArea").classList.remove("hidden");
+
+  shuffleDeck();
+  updateTurnDisplay();
+  updateScoreboard();
+  loadCard();
+}
+
+function shuffleDeck() {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  currentCardIndex = 0;
+}
+
+function loadCard() {
+  const cardEl = document.getElementById("card");
+  cardEl.classList.add("no-anim");
+  cardEl.classList.remove("flip");
+  revealStep = 0;
+  void cardEl.offsetWidth;
+
+  const card = deck[currentCardIndex];
+  document.getElementById("qrImage").src = card.qr;
+  document.getElementById("song").textContent = card.song;
+  document.getElementById("band").textContent = card.band;
+  document.getElementById("year").textContent = card.year;
+  
+  // Hide band and year initially
+  document.getElementById("band").classList.add("hidden");
+  document.getElementById("year").classList.add("hidden");
+
+  cardEl.classList.remove("no-anim");
+}
+
+function flipCard() {
+  const card = document.getElementById("card");
+  const band = document.getElementById("band");
+  const year = document.getElementById("year");
+
+  if (revealStep === 0) {
+    // First click: flip to show song
+    card.classList.add("flip");
+    revealStep = 1;
+  } else if (revealStep === 1) {
+    // Second click: reveal band
+    band.classList.remove("hidden");
+    revealStep = 2;
+  } else if (revealStep === 2) {
+    // Third click: reveal year
+    year.classList.remove("hidden");
+    revealStep = 3;
+  }
+}
+
+function addSongPoint() {
+  scores[players[currentPlayerIndex]]++;
+  updateScoreboard();
+  playSound("Nice.mp3");
+}
+
+function addBandPoint() {
+  scores[players[currentPlayerIndex]]++;
+  updateScoreboard();
+  playSound("Yes.mp3");
+}
+
+function addYearPoint() {
+  scores[players[currentPlayerIndex]]++;
+  updateScoreboard();
+  playSound("Awesome.mp3");
+}
+
+function nextTurn() {
+  currentPlayerIndex++;
+  if (currentPlayerIndex >= players.length) {
+    currentPlayerIndex = 0;
+    roundNumber++;
+  }
+  questionNumber++;
+  currentCardIndex = (currentCardIndex + 1) % deck.length;
+  updateTurnDisplay();
+  loadCard();
+}
+
+function updateTurnDisplay() {
+  document.getElementById("turnDisplay").innerHTML =
+    `Round ${roundNumber} — Q${questionNumber}<br><strong>${players[currentPlayerIndex]}'s Turn</strong>`;
+}
+
+function updateScoreboard() {
+  let board = "<h3>Scoreboard</h3>";
+  for (let p of players) {
+    board += p + ": " + scores[p] + "<br>";
+  }
+  document.getElementById("scoreboard").innerHTML = board;
+}
+</script>
+</body>
+</html>
